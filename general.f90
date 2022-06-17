@@ -1,4 +1,32 @@
 !####################################################################################
+!read solution data for ALL zones
+!in order to read specific zones, one should modify the routines in "cgns_routines.f90"
+subroutine read_mean_soln()
+
+  use mod_field
+  use mod_CGNS
+  use mod_pod_modes, only : working_zone
+  implicit none
+  integer(kind=4) :: m, t
+  integer(kind=4) :: temp(3)
+  integer(kind=4) :: idummy
+
+  !~~~~~~~~~~~~~~~~~~~~~~~~~~~  
+  m = working_zone
+  
+  allocate(zone(m)%qmean3D(imin(m):imax(m),1:jmax(m),1:kmax(m)))
+           zone(m)%qmean3D(imin(m):imax(m),1:jmax(m),1:kmax(m)) = 0.0d0  
+  
+  call read_mean_soln_3D_CGNS(m,[imin(m),1,1],[imax(m),jmax(m),kmax(m)],'VelocityX_ave','./mean_3D.cgns',& 
+                               zone(m)%qmean3D(imin(m):imax(m),1:jmax(m),1:kmax(m)))
+
+  return
+
+end subroutine read_mean_soln
+!####################################################################################
+
+
+!####################################################################################
 !read grid data for ALL zones
 !in order to read specific zones, one should modify the routines in "cgns_routines.f90"
 subroutine read_grid
@@ -72,10 +100,10 @@ subroutine read_grid
     nx1 = imax(m)-imin(m)+1
     nx2 = jmax(m)
     nx3 = kmax(m)
-    call create_file_CGNS(trim(output_path)//'/grid.cgns','3D')
+    call create_file_CGNS(trim(output_path)//'/grid_mod.cgns','3D')
     call write_partial_grid_3D_CGNS( output_zone,[nx1,nx2,nx3], &
           zone(m)%x(imin(m):imax(m),1:jmax(m),1:kmax(m)), zone(m)%y(imin(m):imax(m),1:jmax(m),1:kmax(m)), &
-          zone(m)%z(imin(m):imax(m),1:jmax(m),1:kmax(m)), trim(output_path)//'/grid.cgns' )
+          zone(m)%z(imin(m):imax(m),1:jmax(m),1:kmax(m)), trim(output_path)//'/grid_mod.cgns' )
       
   endif
   
@@ -95,30 +123,17 @@ subroutine read_soln_ruvw()
   use mod_field
   use mod_CGNS
   use mod_pod_modes, only : working_zone
-  use mod_signal_process, only : dt
   implicit none
-  integer(kind=4) :: i, m, t
+  integer(kind=4) :: m, t
   integer(kind=4) :: idummy
 
-  logical :: new_file_version
-
-  character(len=16) :: cdummy
+!  character(len=16) :: cdummy
   
   nsnap = (idxf - idxi)/idxr + 1
   idxf = idxi + (nsnap-1)*idxr
   
   write(*,*) 'Solution files:'
-  write(*,*) idxi, idxf, idxr
-  
-  !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-  
-  dt = dt*dble(fresult)*dble(idxr)
- 
-  allocate(time(1:nsnap))
-  time(1:nsnap) = 0.0d0
-  do i = 1,nsnap
-    time(i) = dble(i-1)*dt
-  enddo  
+  write(*,*) idxi, idxf, idxr  
 
   !~~~~~~~~~~~~~~~~~~~~~~~~~~~  
   m = working_zone
@@ -144,19 +159,18 @@ subroutine read_soln_ruvw()
     endif    
     
     if (trim(working_var) .eq. "ReynoldsStress") then
-      write(*,'(A,i0,A)') ' Reading the all the data for ', nsnap, ' snapshots ...' 
+      write(*,'(A,i0,A)') ' Reading   Density for ', nsnap, ' snapshots and converting to ' // trim(working_var)
       allocate(zone(m)%r(imin(m):imax(m),1:jmax(m),1:kmax(m),1:nsnap))
                zone(m)%r(imin(m):imax(m),1:jmax(m),1:kmax(m),1:nsnap) = 0.0d0
+      write(*,'(A,i0,A)') ' Reading MomentumX for ', nsnap, ' snapshots and converting to ' // trim(working_var)
       allocate(zone(m)%u(imin(m):imax(m),1:jmax(m),1:kmax(m),1:nsnap))
                zone(m)%u(imin(m):imax(m),1:jmax(m),1:kmax(m),1:nsnap) = 0.0d0
+      write(*,'(A,i0,A)') ' Reading MomentumY for ', nsnap, ' snapshots and converting to ' // trim(working_var)
       allocate(zone(m)%v(imin(m):imax(m),1:jmax(m),1:kmax(m),1:nsnap))
                zone(m)%v(imin(m):imax(m),1:jmax(m),1:kmax(m),1:nsnap) = 0.0d0
+      write(*,'(A,i0,A)') ' Reading MomentumZ for ', nsnap, ' snapshots and converting to ' // trim(working_var)
       allocate(zone(m)%w(imin(m):imax(m),1:jmax(m),1:kmax(m),1:nsnap))
                zone(m)%w(imin(m):imax(m),1:jmax(m),1:kmax(m),1:nsnap) = 0.0d0
-      allocate(zone(m)%p(imin(m):imax(m),1:jmax(m),1:kmax(m),1:nsnap))
-               zone(m)%p(imin(m):imax(m),1:jmax(m),1:kmax(m),1:nsnap) = 0.0d0
-!      allocate(zone(m)%q(imin(m):imax(m),1:jmax(m),1:kmax(m),1:nsnap))
-!               zone(m)%q(imin(m):imax(m),1:jmax(m),1:kmax(m),1:nsnap) = 0.0d0
     endif
   
     !---- reading the solution files
@@ -164,30 +178,15 @@ subroutine read_soln_ruvw()
     soln : do idummy = idxi,idxf,idxr
 
       t = t + 1
-      ! !Note: .cgnc =  5 caracteres!, logo A5 em i6.6 --> numero de digitos do qout
-      ! if (data_2D .eqv. .true.) write(CGNS_solnname,'(A,A,i6.6,A8)') trim(path_to_soln), 'qout', idummy, '_2D.cgns'
-      ! !Dados CGNS do HD completo
-      if (data_2D .eqv. .true.) write(CGNS_solnname,'(A,A,i6.6,A5)') trim(path_to_soln), 'qout', idummy, '.cgns'
-      if (data_3D .eqv. .true.) write(CGNS_solnname,'(A,A,i6.6,A5)') trim(path_to_soln), 'qout', idummy, '.cgns'
-      !Reconstrução
-      !if (data_3D .eqv. .true.) write(CGNS_solnname,'(A,A,i4.4,A5)') trim(path_to_soln), 'rcns', idummy, '.cgns'
-      !Dados CGNS do HD reduzido
-      ! if (data_2D .eqv. .true.) write(CGNS_solnname,'(A,A,i6.6,A8)') trim(path_to_soln), 'qout', idummy, '_mod.cgns'
-      ! if (data_3D .eqv. .true.) write(CGNS_solnname,'(A,A,i6.6,A9)') trim(path_to_soln), 'qout', idummy, '_mod.cgns'
-      
-      ! ! Checa se o arquivo esta no padrão novo (Tulio, Brener e Miotto) ou no padrão antigo (William e Jean)
-      ! inquire(file=trim(CGNS_solnname),exist=new_file_version)
-      ! if (new_file_version .eqv. .true.) then
-        
-      !   if (t .eq. 1) print*,  '(1) Arquivo do William !!'
 
-      !   if (data_2D .eqv. .true.) write(CGNS_solnname,'(A,A,i6.6,A8)') trim(path_to_soln), 'qout', idummy, '_2D.cgns'
-      !   if (data_3D .eqv. .true.) write(CGNS_solnname,'(A,A,i4.4,A5)') trim(path_to_soln), 'qout', idummy, '.cgns'
-        
-      ! endif
+      if (data_2D .eqv. .true.) write(CGNS_solnname,'(A,A,i6.6,A8)') trim(path_to_soln), 'qout', idummy, '_2D.cgns'
+      !if (data_2D .eqv. .true.) write(CGNS_solnname,'(A,A,i6.6,A5)') trim(path_to_soln), 'qout', idummy, '.cgns'
+      if (data_3D .eqv. .true.) write(CGNS_solnname,'(A,A,i6.6,A5)') trim(path_to_soln), 'qout', idummy, '.cgns'
+
+!      if (data_2D .eqv. .true.) write(CGNS_solnname,'(A,A,i4.4,A8)') trim(path_to_soln), 'qout', idummy, '_2D.cgns'
+!      if (data_3D .eqv. .true.) write(CGNS_solnname,'(A,A,i4.4,A5)') trim(path_to_soln), 'qout', idummy, '.cgns'
 
       !~~~~~~
-      ! Lê o iblank se for necessário
       if (t .eq. 1 .and. iblank .eqv. .true.) then
         write(*,'(A)') ' '
         write(*,'(A)') ' Reading iblank ...'
@@ -204,110 +203,46 @@ subroutine read_soln_ruvw()
       
       !~~~~~~
       if (trim(working_var) .ne. "ReynoldsStress" .and. working_var(1:8) .ne. "Velocity" .and. trim(working_var) .ne. "Grid" ) then
-      
-        ! Lê uma variável existente no arquivo CGNS versão nova (6 digitos, e momento)
-        if (new_file_version .eqv. .true.) then
-          call read_partial_soln_CGNS(m,[imin(m),1,1],[imax(m),jmax(m),kmax(m)], &
-                        trim(working_var),trim(CGNS_solnname),zone(m)%q(imin(m):imax(m),1:jmax(m),1:kmax(m),t))
-        endif
-
-        ! ! Lê uma variável existente no arquivo CGNS na versão antiga (4 digitos e velocidade)
-        ! if (new_file_version .eqv. .true.) then
-          
-        !   if (t .eq. 1) then
-        !     if (trim(working_var) .eq. "MomentumX") cdummy = 'VelocityX'
-        !     if (trim(working_var) .eq. "MomentumY") cdummy = 'VelocityY'
-        !     if (trim(working_var) .eq. "MomentumZ") cdummy = 'VelocityZ'
-        !     if (trim(working_var) .eq.  "Pressure") cdummy = 'Pressure'
-        !     print*,  '(2) Arquivo do William !!', trim(cdummy)
-        !   endif
-          
-        !   call read_partial_soln_CGNS(m,[imin(m),1,1],[imax(m),jmax(m),kmax(m)], &
-        !                 trim(cdummy),trim(CGNS_solnname),zone(m)%q(imin(m):imax(m),1:jmax(m),1:kmax(m),t))
-
-        ! endif
-
+!        if (trim(working_var) .eq. "MomentumX") cdummy = 'VelocityX'
+!        if (trim(working_var) .eq. "MomentumY") cdummy = 'VelocityY'
+!        if (trim(working_var) .eq. "MomentumZ") cdummy = 'VelocityZ'
+!        if (trim(working_var) .eq.  "Pressure") cdummy = 'Pressure'
+!        call read_partial_soln_CGNS(m,[imin(m),1,1],[imax(m),jmax(m),kmax(m)], &
+!                                                                        trim(cdummy),trim(CGNS_solnname),zone(m)%q(imin(m):imax(m),1:jmax(m),1:kmax(m),t))
+        call read_partial_soln_CGNS(m,[imin(m),1,1],[imax(m),jmax(m),kmax(m)], &
+                                                                        trim(working_var),trim(CGNS_solnname),zone(m)%q(imin(m):imax(m),1:jmax(m),1:kmax(m),t))
       endif
 
-      !Bloco que geralmente eh utilizado, comentar caso for rodar o do william
-       
-      if (new_file_version .eqv. .true.) then
+      !~~~~~~
+      if ( working_var(1:8) .eq. "Velocity"  ) &
+        call read_partial_soln_CGNS(m,[imin(m),1,1],[imax(m),jmax(m),kmax(m)],  'Density',trim(CGNS_solnname),zone(m)%r(imin(m):imax(m),1:jmax(m),1:kmax(m),t))
 
-        if ( working_var(1:8) .eq. "Velocity"  ) &
-          call read_partial_soln_CGNS(m,[imin(m),1,1],[imax(m),jmax(m),kmax(m)],  'Density',trim(CGNS_solnname),zone(m)%r(imin(m):imax(m),1:jmax(m),1:kmax(m),t))
-          
-        if (trim(working_var) .eq. "VelocityX" ) &
-          call read_partial_soln_CGNS(m,[imin(m),1,1],[imax(m),jmax(m),kmax(m)],'MomentumX',trim(CGNS_solnname),zone(m)%q(imin(m):imax(m),1:jmax(m),1:kmax(m),t))
+      if (trim(working_var) .eq. "VelocityX" ) &
+        call read_partial_soln_CGNS(m,[imin(m),1,1],[imax(m),jmax(m),kmax(m)],'MomentumX',trim(CGNS_solnname),zone(m)%q(imin(m):imax(m),1:jmax(m),1:kmax(m),t))
 
-        if (trim(working_var) .eq. "VelocityY" ) &
-          call read_partial_soln_CGNS(m,[imin(m),1,1],[imax(m),jmax(m),kmax(m)],'MomentumY',trim(CGNS_solnname),zone(m)%q(imin(m):imax(m),1:jmax(m),1:kmax(m),t))
+      if (trim(working_var) .eq. "VelocityY" ) &
+        call read_partial_soln_CGNS(m,[imin(m),1,1],[imax(m),jmax(m),kmax(m)],'MomentumY',trim(CGNS_solnname),zone(m)%q(imin(m):imax(m),1:jmax(m),1:kmax(m),t))
 
-        if (trim(working_var) .eq. "VelocityZ" ) &
-          call read_partial_soln_CGNS(m,[imin(m),1,1],[imax(m),jmax(m),kmax(m)],'MomentumZ',trim(CGNS_solnname),zone(m)%q(imin(m):imax(m),1:jmax(m),1:kmax(m),t))  
-        
-      endif
-      
-      
-    !  if (new_file_version .eqv. .true.) then
-       
-    !    if (t .eq. 1) print*,  '(3) Arquivo do William !!'
-
-    !    if (trim(working_var) .eq. "Density"  ) &
-    !      call read_partial_soln_CGNS(m,[imin(m),1,1],[imax(m),jmax(m),kmax(m)],  'Density',trim(CGNS_solnname),zone(m)%r(imin(m):imax(m),1:jmax(m),1:kmax(m),t))
-
-    !    if (trim(working_var) .eq. "VelocityX" ) &
-    !      call read_partial_soln_CGNS(m,[imin(m),1,1],[imax(m),jmax(m),kmax(m)],'VelocityX',trim(CGNS_solnname),zone(m)%q(imin(m):imax(m),1:jmax(m),1:kmax(m),t))
-
-    !    if (trim(working_var) .eq. "VelocityY" ) &
-    !      call read_partial_soln_CGNS(m,[imin(m),1,1],[imax(m),jmax(m),kmax(m)],'VelocityY',trim(CGNS_solnname),zone(m)%q(imin(m):imax(m),1:jmax(m),1:kmax(m),t))
-
-    !    if (trim(working_var) .eq. "VelocityZ" ) &
-    !      call read_partial_soln_CGNS(m,[imin(m),1,1],[imax(m),jmax(m),kmax(m)],'VelocityZ',trim(CGNS_solnname),zone(m)%q(imin(m):imax(m),1:jmax(m),1:kmax(m),t)) 
-
-    !      print*, m, imin(m), imax(m)
-
-    !      call read_partial_soln_CGNS(m,[imin(m),1,1],[imax(m),jmax(m),kmax(m)], &
-    !                    trim(working_var),trim(CGNS_solnname),zone(m)%q(imin(m):imax(m),1:jmax(m),1:kmax(m),t))
-     
-    !  endif
+      if (trim(working_var) .eq. "VelocityZ" ) &
+        call read_partial_soln_CGNS(m,[imin(m),1,1],[imax(m),jmax(m),kmax(m)],'MomentumZ',trim(CGNS_solnname),zone(m)%q(imin(m):imax(m),1:jmax(m),1:kmax(m),t))  
         
       !~~~~~~
       if (trim(working_var) .eq. "ReynoldsStress") then
-
-        if (new_file_version .eqv. .true.) then  !Bloco utilizado para as arquivos que não são do William
-
-          call read_partial_soln_CGNS(m,[imin(m),1,1],[imax(m),jmax(m),kmax(m)],  'Density',trim(CGNS_solnname),zone(m)%r(imin(m):imax(m),1:jmax(m),1:kmax(m),t))      
-          call read_partial_soln_CGNS(m,[imin(m),1,1],[imax(m),jmax(m),kmax(m)],'MomentumX',trim(CGNS_solnname),zone(m)%u(imin(m):imax(m),1:jmax(m),1:kmax(m),t))
-          call read_partial_soln_CGNS(m,[imin(m),1,1],[imax(m),jmax(m),kmax(m)],'MomentumY',trim(CGNS_solnname),zone(m)%v(imin(m):imax(m),1:jmax(m),1:kmax(m),t))
-          call read_partial_soln_CGNS(m,[imin(m),1,1],[imax(m),jmax(m),kmax(m)],'MomentumZ',trim(CGNS_solnname),zone(m)%w(imin(m):imax(m),1:jmax(m),1:kmax(m),t))
-          call read_partial_soln_CGNS(m,[imin(m),1,1],[imax(m),jmax(m),kmax(m)], 'Pressure',trim(CGNS_solnname),zone(m)%p(imin(m):imax(m),1:jmax(m),1:kmax(m),t))    
-
-        endif
-        
-        ! if (new_file_version .eqv. .true.) then
-        
-        !   if (t .eq. 1) print*,  '(4) Arquivo do William !!'
-
-        !  zone(m)%r(imin(m):imax(m),1:jmax(m),1:kmax(m),t) = 1.0d0
-
-        !   call read_partial_soln_CGNS(m,[imin(m),1,1],[imax(m),jmax(m),kmax(m)],  'Density',trim(CGNS_solnname),zone(m)%r(imin(m):imax(m),1:jmax(m),1:kmax(m),t))
-        !   call read_partial_soln_CGNS(m,[imin(m),1,1],[imax(m),jmax(m),kmax(m)],'VelocityX',trim(CGNS_solnname),zone(m)%u(imin(m):imax(m),1:jmax(m),1:kmax(m),t))
-        !   call read_partial_soln_CGNS(m,[imin(m),1,1],[imax(m),jmax(m),kmax(m)],'VelocityY',trim(CGNS_solnname),zone(m)%v(imin(m):imax(m),1:jmax(m),1:kmax(m),t))
-        !   call read_partial_soln_CGNS(m,[imin(m),1,1],[imax(m),jmax(m),kmax(m)],'VelocityZ',trim(CGNS_solnname),zone(m)%w(imin(m):imax(m),1:jmax(m),1:kmax(m),t))  
-        !   call read_partial_soln_CGNS(m,[imin(m),1,1],[imax(m),jmax(m),kmax(m)], 'Pressure',trim(CGNS_solnname),zone(m)%p(imin(m):imax(m),1:jmax(m),1:kmax(m),t))
-
-        ! endif
-      
-        endif   
+        call read_partial_soln_CGNS(m,[imin(m),1,1],[imax(m),jmax(m),kmax(m)],  'Density',trim(CGNS_solnname),zone(m)%r(imin(m):imax(m),1:jmax(m),1:kmax(m),t))      
+        call read_partial_soln_CGNS(m,[imin(m),1,1],[imax(m),jmax(m),kmax(m)],'MomentumX',trim(CGNS_solnname),zone(m)%u(imin(m):imax(m),1:jmax(m),1:kmax(m),t))
+        call read_partial_soln_CGNS(m,[imin(m),1,1],[imax(m),jmax(m),kmax(m)],'MomentumY',trim(CGNS_solnname),zone(m)%v(imin(m):imax(m),1:jmax(m),1:kmax(m),t))
+        call read_partial_soln_CGNS(m,[imin(m),1,1],[imax(m),jmax(m),kmax(m)],'MomentumZ',trim(CGNS_solnname),zone(m)%w(imin(m):imax(m),1:jmax(m),1:kmax(m),t))  
+      endif   
     
     enddo soln
+     
+!  if (iblank .eqv. .false.) write(*,*) ' '
 
-  ! !XXX Migue
-  !     call system('printf "\033[0;32m \n"')
-  !     print*, ' --> Migue :: Estou alocando "q" pq eu uso no calculo das flutuacoes!' 
-  !     print*, ' --> Migue :: Tentar pensar numa forma mais organizada ...' 
-  !     call system('printf "\033[0m \n"') 
-    print*, ' '
+  !XXX Migue
+      call system('printf "\033[0;32m \n"')
+      print*, ' --> Migue :: Estou alocando "q" pq eu uso no calculo das flutuacoes!' 
+      print*, ' --> Migue :: Tentar pensar numa forma mais organizada ...' 
+      call system('printf "\033[0m \n"') 
           
   if (allocated(zone(m)%q) .eqv. .false.) allocate(zone(m)%q(imin(m):imax(m),1:jmax(m),1:kmax(m),1:nsnap))
        
@@ -392,3 +327,72 @@ subroutine convert_momentum_to_velocity
 
 end subroutine convert_momentum_to_velocity
 !####################################################################################
+
+!!####################################################################################
+!subroutine dummy_subroutine(t)
+
+!  !calcular dpdn na parede!
+
+!  use mod_CGNS
+!  use mod_field
+!  use mod_pod_modes, only : working_zone
+!  implicit none
+!  integer(kind=4), intent(in) :: t
+!  integer(kind=4) i, m
+!  real(kind=8), allocatable :: enx(:)
+!  real(kind=8), allocatable :: eny(:)
+!  real(kind=8), allocatable :: dpdn(:)
+!  real(kind=8), allocatable :: cp(:), cf(:)
+!  real(kind=8) :: dx, dy, ds, ds1, ds2, xm
+!  
+!  m = working_zone
+!  
+!  allocate(enx(imin(m):imax(m)))
+!  allocate(eny(imin(m):imax(m)))
+!  allocate(cp(imin(m):imax(m)))
+!  allocate(cf(imin(m):imax(m)))
+!  allocate(dpdn(imin(m):imax(m)))
+
+!  if (trim(working_var) .ne. 'Pressure') stop ' Tem que ser pressao!!'
+!  if (t .eq. 1) then
+!    open(100,file='dpdn.dat')
+!  else
+!    open(100,file='dpdn.dat',position='append')
+!  endif
+
+!  write(100,'(A,i0,A,i0,A,f10.5)') 'ZONE T="', t,'", I=',imax(m)-imin(m),', STRANDID=1, SOLUTIONTIME=', dble(t)
+
+!  do i = imin(m),imax(m)-1
+!    
+!    dx = zone(m)%x(i+1,1,1) - zone(m)%x(i,1,1)
+!    dy = zone(m)%y(i+1,1,1) - zone(m)%y(i,1,1)
+!    ds = dsqrt(dx**2 + dy**2)
+!    
+!    !calcular normal
+!    enx(i) = -dy/ds
+!    eny(i) = +dx/ds
+!    
+!    !calcular Cf usando du/dy
+!    !  usar formula de segunda ordem (página 196 do Hirsch)
+!    dx = zone(m)%x(i,2,1) - zone(m)%x(i,1,1)
+!    dy = zone(m)%y(i,2,1) - zone(m)%y(i,1,1)
+!    ds1 = dsqrt(dx**2 + dy**2)
+!    
+!    dx = zone(m)%x(i,3,1) - zone(m)%x(i,2,1)
+!    dy = zone(m)%y(i,3,1) - zone(m)%y(i,2,1)
+!    ds2 = dsqrt(dx**2 + dy**2)
+
+!    dpdn(i) = ((ds1+ds2)/(ds1*ds2))*(zone(m)%q(i,2,1,t)-zone(m)%q(i,1,1,t))
+!    dpdn(i) = dpdn(i) - (ds1/ds2)*(1.0d0/(ds1+ds2))*(zone(m)%q(i,3,1,t)-zone(m)%q(i,1,1,t))
+
+!    xm = (zone(m)%x(i+1,1,1) + zone(m)%x(i,1,1))*0.5d0
+!    write(100,'(2f23.15)') xm, dpdn(i)
+!    
+!  enddo
+!  
+!  close(100)
+
+!  return
+
+!end subroutine dummy_subroutine
+!!####################################################################################

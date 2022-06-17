@@ -1,62 +1,45 @@
 !#####################################################################################
 module mod_field
 
+  real(kind=8) :: Re, Ma, Reinv, gas_cte, gamma, pinf, Twall, mu
+
   logical :: data_3D
   logical :: data_2D
+  
   logical :: iblank
-
-  real(kind=8) :: Re, Ma, Reinv, pinf, mu,utau,dens
-
-  real(kind=8), parameter :: gamma = 1.4d0
-  real(kind=8), parameter :: gas_cte = 287.0d0
-  real(kind=8), parameter :: Twall = 2.5d0                ! = (1.0d0/(gamma-1.0d0))  
+  !logical :: use_r, use_u, use_v, use_w, use_q  
 
   character(len=132) :: path_to_grid
   character(len=132) :: path_to_soln
   character(len=132) :: output_path
   character(len=132) :: grid_name
-  
-  
-  integer(kind=4) :: idxi                                 ! index initial
-  integer(kind=4) :: idxf                                 ! index final
-  integer(kind=4) :: idxr                                 ! index rate
-  integer(kind=4) :: nsnap,nt
-  integer(kind=4) :: fresult,position
-  real(kind=8), allocatable :: time(:)
+
+  integer(kind=4) idxi     ! index initial
+  integer(kind=4) idxf     ! index final
+  integer(kind=4) idxr     ! index rate
+  integer(kind=4) nsnap
+  integer(kind=4) :: fresult
   
   integer(kind=4) :: nzones
   integer(kind=4) :: output_zone
+  
+!  logical         :: logical_primitive
 
-  integer(kind=4) :: start_index_i, final_index_i,x1,x2,y1,y2,z1,z2
+  integer(kind=4) :: start_index_i, final_index_i
   integer(kind=4) :: start_index_j, final_index_j  
   integer(kind=4), allocatable, dimension(:) :: imin, imax
   integer(kind=4), allocatable, dimension(:) :: jmin, jmax
   integer(kind=4), allocatable, dimension(:) :: kmin, kmax
   
-  
-  real(kind=8), allocatable :: dqsidx(:,:,:),dqsidy(:,:,:),dqsidz(:,:,:)
-  real(kind=8), allocatable :: detadx(:,:,:),detady(:,:,:),detadz(:,:,:)
-  real(kind=8), allocatable :: dphidx(:,:,:),dphidy(:,:,:),dphidz(:,:,:)
-  real(kind=8), allocatable :: dxdqsi(:,:,:),dydqsi(:,:,:)
-  real(kind=8), allocatable :: jacobian(:,:,:)
+  real(kind=8), allocatable :: dz(:)
 
-  real(kind=8), allocatable :: dz(:),yplus(:)
-  real(kind=8), allocatable :: umean(:,:),vmean(:,:)
-  real(kind=8), allocatable :: ufluc(:,:,:,:),vfluc(:,:,:,:),wfluc(:,:,:,:)
-  real(kind=8), allocatable :: duuvdy(:),dvvvdy(:),dwwvdy(:),duuudx(:),dvvudx(:),dwwudx(:)
-  real(kind=8), allocatable :: dvpdy(:),dupdx(:)
-  real(kind=8), allocatable :: dUmdy(:),dVmdy(:),dUmdx(:),dVmdx(:),Ucov(:)
-  real(kind=8), allocatable :: dkdy(:,:),dkdx(:,:)
-  real(kind=8), allocatable :: dk2dy2(:),dk2dx2(:)
-  real(kind=8), allocatable :: dudx(:,:,:),dvdx(:,:,:),dwdx(:,:,:),dudy(:,:,:),dvdy(:,:,:)
-  real(kind=8), allocatable :: dwdy(:,:,:),dudz(:,:,:),dvdz(:,:,:),dwdz(:,:,:)
-
-  
   type zone_vars
 
     real(kind=8), allocatable, dimension(:,:,:,:) :: q
 
     real(kind=8), allocatable, dimension(:,:)     :: qmean2D
+!    real(kind=8), allocatable, dimension(:,:)     :: qstdd2D
+        
     real(kind=8), allocatable, dimension(:,:,:)   :: qmean3D
 
     real(kind=8), allocatable, dimension(:,:,:,:) :: r
@@ -64,13 +47,16 @@ module mod_field
     real(kind=8), allocatable, dimension(:,:,:,:) :: v
     real(kind=8), allocatable, dimension(:,:,:,:) :: w
     real(kind=8), allocatable, dimension(:,:,:,:) :: p
+
+!    real(kind=8), allocatable, dimension(:,:,:,:) :: kinetic
+!    real(kind=8), allocatable, dimension(:,:,:,:,:) :: quadrupole
+
+    complex(kind=8), allocatable, dimension(:,:,:,:) :: q_hat
     
-    real(kind=8), allocatable, dimension(:,:,:)   :: umean
-    real(kind=8), allocatable, dimension(:,:,:)   :: vmean
-    real(kind=8), allocatable, dimension(:,:,:)   :: wmean
-    real(kind=8), allocatable, dimension(:,:,:)   :: pmean
-        
-    complex(kind=8), allocatable, dimension(:,:,:,:) :: q_hat  
+!    complex(kind=8), allocatable, dimension(:,:,:,:) :: u_hat
+!    complex(kind=8), allocatable, dimension(:,:,:,:) :: v_hat
+!    complex(kind=8), allocatable, dimension(:,:,:,:) :: w_hat
+!    complex(kind=8), allocatable, dimension(:,:,:,:) :: p_hat    
     
     real(kind=8), allocatable, dimension(:,:,:) :: x, y, z
     
@@ -79,6 +65,7 @@ module mod_field
     real(kind=8), allocatable :: volume(:,:)
     
     integer(kind=4) :: nx, ny, nz
+!    integer(kind=4) :: nx1, nx2, nx3
     
   end type zone_vars
   type(zone_vars), allocatable :: zone(:)
@@ -91,9 +78,9 @@ module mod_pod_modes
   integer(kind=4) :: zone_min, zone_max
 
   !~~~~~ sparsity!
-  integer(kind=4), parameter :: istride = 1
-  integer(kind=4), parameter :: jstride = 1
-  integer(kind=4), parameter :: kstride = 1
+  integer(kind=4), parameter :: istride = 2
+  integer(kind=4), parameter :: jstride = 2
+  integer(kind=4), parameter :: kstride = 2
 
   !~~~~~ 
   integer(kind=4) nPODmodes

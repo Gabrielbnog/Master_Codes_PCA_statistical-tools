@@ -5,10 +5,7 @@
 
 NAME = xPOD3D
 
-F90FILES = modfile.f90 modfile_FFT.f90 cgns_routines.f90 \
-           export.f90 averaging.f90 probe.f90 profile.f90 compute_area.f90 \
-           POD_Fourier.f90 POD_snapshot.f90 POD_harmonic.f90 \
-           general.f90 der.f90 TKE.f90 lumley.f90 main.f90
+F90FILES = modfile.f90 modfile_FFT.f90 cgns_routines.f90 fourier_span.f90 general.f90 main.f90
 
 OFILES = $(F90FILES:.f90=.o)
 
@@ -20,8 +17,8 @@ ifeq "$(HOST)" "Nazgul"
 	LIBS_CGNS = -I/usr/local/include /usr/local/lib/libcgns.a
 endif
 
-ifeq "$(HOST)" "gabnog"
-	CYCLE = 4
+ifeq "$(HOST)" "Gabnog"
+	CYCLE = 3
 	LIBS_CGNS = -I/usr/local/include /usr/local/lib/libcgns.a
 endif
 
@@ -73,7 +70,7 @@ endif
 
 ifeq "$(CYCLE)" "4"
 FC = gfortran 
-OPTLEVEL = -O0
+OPTLEVEL = -Og
 FLAGS1 = -fcheck=all -fimplicit-none -Wall -fbacktrace -static
 FLAGS2 = #-fopenmp
 FLAGS3 = -ffree-line-length-none

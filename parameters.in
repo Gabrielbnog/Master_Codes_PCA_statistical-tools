@@ -1,1 +1,19 @@
-parameters_4.in
+
+&WORK_PAR
+  working_zone = 0
+  output_zone = 0
+  working_var = "VelocityX"
+  start_index_i = 1
+  final_index_i = 0
+  output_path = "/media/dados1/PhD/airfoil/run_2"
+ /
+
+&GRID_PAR
+  grid_name = "grid.cgns"
+  path_to_grid = "/media/dados1/PhD/airfoil/run_2"
+  iblank = .false.
+ /
+ 
+&SOLN_PAR
+  path_to_soln = "/media/dados1/PhD/airfoil/run_2"
+ /

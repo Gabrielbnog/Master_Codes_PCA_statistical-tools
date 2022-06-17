@@ -1,165 +1,24 @@
 !####################################################################################
 program xPOD3D
 
-  !use mod_CGNS!, only : working_var
-  use mod_field  !, only : time, idxi, idxr, idxf, nsnap, output_path
+  use mod_CGNS, only : working_var
+  use mod_field, only : idxi, idxr, idxf, nsnap, output_path
   use mod_pod_modes
   use mod_signal_process
-  
   implicit none
-  integer(kind=4)     :: m !Working zone
+ 
   ! Set-up of the code
   call data_setup
   
-  ! Change the path where is the files will be outputed
-  if (.TRUE.) call change_path(trim(output_path))
-  !Reading the grid data for the working zone only !
   call read_grid
   
-  !call compute_cell_area(working_zone)
-  ! Reads the variables "rho", "u", "v" and "w" based on "working_var"
-  if (.TRUE.) call read_soln_ruvw
+  ! Change the path where is the files will be outputed
+  call change_path(trim(output_path))
   
-  ! Convert from momentum to velocity depending on the working variables
-  if (.FALSE.) call convert_momentum_to_velocity
+  call read_mean_soln
       
-  ! Read variables from .dat file in ASCII format 
-  ! Put values in nx, ny, nz, nsnap, imin, imax, jmin, jmax, kmax 
-  ! The mean can be considered as 3D or 2D (averaging in "Z" axis as well)
-  ! The mean data is computed for the variable "q", which can be anything..
-  ! To compute the mean for 'n' different variables, this routine should be called 'n' times
-  if (.FALSE.) call Reynolds_Decomposition(.false.)   !arquivos 3D apenas
-  
-  if (.FALSE.) call Double_Decomposition(.false.)     !arquivos 2D ou 3D...
-  
-  !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-    ! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    !  -> The steps below are not required for POD and its variants ...
-    !   They are optional and may be used for further analysis of the data
-    if (.TRUE.) then
-      ! To compute the aerodynamic coefficients (Cp, Cl, Cd, Cf)
-      if (.false.) then
-        call compute_aerodynamic_coefficients
-      endif
-      if (.TRUE.) then
-        
-        m = working_zone
-        !Dimensoes do trecho a ser considerado para a zona CGNS
-        x1 = imin(m)
-        x2 = imax(m)
-        y1 = jmin(m) 
-        y2 = jmax(m)
-        z1 = kmin(m) 
-        z2 = kmax(m)
-        nt = nsnap
-                
-        allocate(dqsidx(x1:x2,y1:y2,z1:z2),dqsidy(x1:x2,y1:y2,z1:z2),dqsidz(x1:x2,y1:y2,z1:z2))                                                                      
-        allocate(detadx(x1:x2,y1:y2,z1:z2),detady(x1:x2,y1:y2,z1:z2),detadz(x1:x2,y1:y2,z1:z2)) 
-        allocate(dphidx(x1:x2,y1:y2,z1:z2),dphidy(x1:x2,y1:y2,z1:z2),dphidz(x1:x2,y1:y2,z1:z2)) 
-        allocate(dxdqsi(x1:x2,y1:y2,z1:z2),dydqsi(x1:x2,y1:y2,z1:z2),jacobian(x1:x2,y1:y2,z1:z2),yplus(y2))
-
-        call metric(zone(m)%x(x1:x2,y1:y2,z1:z2),zone(m)%y(x1:x2,y1:y2,z1:z2),zone(m)%z(x1:x2,y1:y2,z1:z2),&
-        dqsidx(x1:x2,y1:y2,z1:z2),dqsidy(x1:x2,y1:y2,z1:z2),dqsidz(x1:x2,y1:y2,z1:z2),&
-        detadx(x1:x2,y1:y2,z1:z2),detady(x1:x2,y1:y2,z1:z2),detadz(x1:x2,y1:y2,z1:z2),&
-        dphidx(x1:x2,y1:y2,z1:z2),dphidy(x1:x2,y1:y2,z1:z2),dphidz(x1:x2,y1:y2,z1:z2),&
-        dxdqsi(x1:x2,y1:y2,z1:z2),dydqsi(x1:x2,y1:y2,z1:z2),jacobian(x1:x2,y1:y2,z1:z2),x2-x1+1,y2,z2)
-        
-        call velocity_profile(x2-x1+1,y2,z2,nt,zone(m)%x(x1:x2,y1:y2,z1:z2),zone(m)%y(x1:x2,y1:y2,z1:z2),Re,Ma, &                                                                                                                                       
-         zone(m)%u(x1:x2,1:y2,1:z2,1:nt),zone(m)%v(x1:x2,1:y2,1:z2,1:nt),zone(m)%r(x1:x2,1:y2,1:z2,1:nt), &
-         utau,mu,dens,yplus(1:y2)) 
-        
-        ! call Lumley(x2-x1+1,y2,z2,nt,zone(m)%./x  u(x1:x2,1:y2,1:z2,1:nt),zone(m)%v(x1:x2,1:y2,1:z2,1:nt),& 
-        !  zone(m)%w(x1:x2,1:y2,1:z2,1:nt),yplus(1:y2),detadx(x1:x2,y1:y2,z1:z2),detady(x1:x2,y1:y2,z1:z2),&
-        !  dqsidx(x1:x2,y1:y2,z1:z2),dqsidy(x1:x2,y1:y2,z1:z2))        
-         
-        ! call ReynoldsStress_profile(x2-x1+1,y2,z2,nt,zone(m)%x(x1:x2,y1:y2,z1:z2), &                                           
-        !  zone(m)%u(x1:x2,1:y2,1:z2,1:nt),zone(m)%v(x1:x2,1:y2,1:z2,1:nt),zone(m)%w(x1:x2,1:y2,1:z2,1:nt), &                                                     
-        !  yplus(1:y2),utau)     
-         
-        call probe_along_Z(x2-x1+1,y2,z2,nt,zone(m)%u(x1:x2,1:y2,1:z2,1:nt),zone(m)%v(x1:x2,1:y2,1:z2,1:nt),&
-         zone(m)%w(x1:x2,1:y2,1:z2,1:nt),detadx(x1:x2,y1:y2,z1:z2),detady(x1:x2,y1:y2,z1:z2),&
-         dqsidx(x1:x2,y1:y2,z1:z2),dqsidy(x1:x2,y1:y2,z1:z2),position,yplus(1:y2))
-         
-        !  print*, ' ' 
-        !  print*, 'Computing TKE'
-        !  print*, ' '
-
-        ! call BalanceTKE(yplus(1:y2),mu,utau,dens,x2-x1+1,y2,z2,nt,zone(m)%u(x1:x2,1:y2,1:z2,1:nt),zone(m)%v(x1:x2,1:y2,1:z2,1:nt),&
-        !  zone(m)%w(x1:x2,1:y2,1:z2,1:nt),zone(m)%p(x1:x2,1:y2,1:z2,1:nt),&
-        !  dqsidx(x1:x2,y1:y2,z1:z2),dqsidy(x1:x2,y1:y2,z1:z2),dqsidz(x1:x2,y1:y2,z1:z2),&
-        !  detadx(x1:x2,y1:y2,z1:z2),detady(x1:x2,y1:y2,z1:z2),detadz(x1:x2,y1:y2,z1:z2),&
-        !  dphidx(x1:x2,y1:y2,z1:z2),dphidy(x1:x2,y1:y2,z1:z2),dphidz(x1:x2,y1:y2,z1:z2))
-                           
-      endif 
-      ! OPTIONAL: 
-      ! To get the temporal fluctuation data at a single point (may be specified several times)
-      if (.FALSE.) then
-
-        if (working_zone .eq. 1) call probe(112,100,1,working_zone,nt,dt,'./')
-        if (working_zone .eq. 9) call probe(114,426,1,working_zone,nt,dt,'./')
-
-      endif
-
-      ! OPTIONAL: 
-      ! To get the temporal fluctuation data at a circle
-      ! Not to be used in the Bhaskaran code !!
-      if (.FALSE.) then
-
-        call circular_probe(500,1,2,nt,dt,'./')
-
-      endif
-
-      ! OPTIONAL: 
-      ! To get the temporal fluctuation data at a line along Z 
-      ! It may be specified several times...
-      if (.FALSE.) then
-
-        write(*,*) ' Exporting probe data'
-        if (working_zone .eq. 1) call probe_along_Z(1,35,working_zone,nt,dt,'./')
-      
-      endif
-
-    endif
-
-  !xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-    ! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    ! 
-    !  -> Proper Orthogonal Decomposition using the "Classic" Snapshot Method
-    ! 
-    !   It is computationally necessary to compute the correlation matrix
-    !   Then, it may be modified to Sieber's Spectral POD in another code
-    !
-    if (.FALSE.) then
-      print*, ''
-      print*, trim(POD_operation)
-      print*, trim(POD_operation)
-      print*, trim(POD_operation)        
-      call POD_snapshot(trim(POD_operation))
-    endif
-    
-    ! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    ! 
-    !  -> "Spatial Fourier" Proper Orthogonal Decomposition using the "Classic" Snapshot Method
-    ! 
-    !   It is necessary to compute the correlation matrix. Note that it is a COMPLEX matrix now!!
-    !   The SVD can be computed for each fourier mode separately
-    !
-    if (.FALSE.) call POD_Fourier(nmodes)
-    
-    ! ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    ! 
-    !  -> Harmonic "Towne's" Spectral POD
-    !
-    !   In this case, it is NOT NECESSARY to compute the Correlation matrix.
-    !   Instead, the temporal fourier modes are directly exported.
-    !   Then, the SVD is computed for the "temporal fouried filtered data".
-    !   This way, the "temporal modes -- associated to the phase shift" and the spatial modes are directly computed
-    !
-    !   The paper from Towne ( )
-    !     says to work with the correlation matrix. However, the results are the same and less programming is necessary!!
-    !
-    if (.FALSE.) call POD_harmonic
-
+  call compute_spatial_fourier_modes_mean
+ 
 end program
 !####################################################################################
 
@@ -178,20 +37,16 @@ subroutine data_setup
 
   integer(kind=4)  :: idummy
   character(len=1) :: cdummy 
-  ! character(len=16) :: var_dummy
+  character(len=16) :: var_dummy
 
   namelist /WORK_PAR/ working_zone, output_zone, working_var, start_index_i, final_index_i, output_path
   namelist /GRID_PAR/ grid_name, path_to_grid, iblank
-  namelist /SOLN_PAR/ idxi, idxf, idxr, path_to_soln, Re, Ma, dt, fresult,position
-  namelist  /POD_PAR/ nPODmodes, POD_operation
-  namelist /SPOD_PAR/ mode_number, binsize
+  namelist /SOLN_PAR/ path_to_soln
 
   open(610,file='parameters.in',status='old')
     read(610,WORK_PAR)
     read(610,GRID_PAR)
     read(610,SOLN_PAR)
-    read(610, POD_PAR)
-    read(610,SPOD_PAR)
   close(610)
 
   !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -225,9 +80,14 @@ subroutine data_setup
   inquire(file='working_var.in',exist=batch_script)
   if (batch_script .eqv. .true.) then
  
+!    print*, ' (1)'
+ 
     open(610,file='working_var.in')
     read(610,*) working_var
     close(610)
+!    print*, ' (2)'
+!    working_var = trim(var_dummy)
+!    print*, ' (3)'
 
     write(*,'(A,A)') ' Forcing new variable :: ', working_var
     write(*,'(A,A)') ' Forcing new variable :: ', working_var
@@ -238,19 +98,18 @@ subroutine data_setup
  
   call system('printf "\033[0m \n"')
   
+  !~~~ 
+
   if (trim(working_var) .eq. "") stop ' Juquinha! Especifique uma variavel!! '
   print*, ' ', trim(working_var)
 
   !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   
-!  dt = dt*dble(fresult)*dble(idxr)
-! 
-!  allocate(time(1:nsnap))
-!  time(1:nsnap) = 0.0d0
-!  do i = 1,nsnap
-!    time(i) = dble(i-1)*dt
-!    print*, time(i)
-!  enddo
+  gamma = 1.4d0
+  gas_cte = 287.0d0
+  Twall = 2.5d0 ! = (1.0d0/(gamma-1.0d0))
+  
+  dt = dt*dble(fresult)*dble(idxr)
   
   !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   !~~~ Malha
@@ -288,6 +147,8 @@ subroutine data_setup
   if (working_zone .gt. nzones) stop ' --> working_zone .gt. nzones <-- '
  
   allocate(zone(working_zone:working_zone))
+
+  !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   m = working_zone
   call read_size_CGNS(m,trim(CGNS_gridname),aux)
@@ -389,4 +250,3 @@ subroutine change_path(path)
 
 end subroutine
 !####################################################################################
-

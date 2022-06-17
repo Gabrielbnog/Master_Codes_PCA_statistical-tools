@@ -1005,7 +1005,7 @@ subroutine read_mean_soln_2D_CGNS(zone_number,ijk_min,ijk_max,var_name,char_file
 
   m = zone_number  
 
-    index_zone = 1
+    index_zone = m
     call cg_zone_read_f(index_mean,index_base,index_zone,zonename,isize,ier)
     
     call cg_gopath_f(index_mean, '/Base/'//trim(zonename), ier)
@@ -1139,6 +1139,67 @@ subroutine write_mean_soln_3D_CGNS(zone_number,ngrid,mean,var_name,char_filename
   return
 
 end subroutine write_mean_soln_3D_CGNS
+!------------------------------------------------------------------------------------
+
+!------------------------------------------------------------------------------------
+subroutine read_mean_soln_3D_CGNS(zone_number,ijk_min,ijk_max,var_name,char_filename,mean)
+
+  use cgns
+  use mod_CGNS
+  implicit none
+  integer(kind=4), intent(in)  :: zone_number
+  integer(kind=4), intent(in)  :: ijk_min(1:3)
+  integer(kind=4), intent(in)  :: ijk_max(1:3)
+  character(len=*), intent(in) :: var_name
+  character(len=*), intent(in) :: char_filename
+  real(kind=8), intent(out)    :: mean(ijk_min(1):ijk_max(1),ijk_min(2):ijk_max(2),ijk_min(3):ijk_max(3))
+  integer(kind=4) :: m
+
+  CGNS_solnname = trim(char_filename)
+
+  call cg_open_f(trim(CGNS_solnname),CG_MODE_READ,index_mean,ier)
+  if (ier .ne. CG_OK) call cg_error_exit_f
+
+  index_base = 1
+  call cg_base_read_f(index_mean, index_base, basename, cell_dim, phys_dim, ier)
+    if (trim(basename) .ne. "Base") stop ' A base nao se chama "Base"... '
+    if (ier .ne. CG_OK) call cg_error_exit_f
+
+  allocate(isize(cell_dim,3))
+
+  m = zone_number  
+
+    index_zone = m
+    call cg_zone_read_f(index_mean,index_base,index_zone,zonename,isize,ier)
+    
+    call cg_gopath_f(index_mean, '/Base/'//trim(zonename), ier)
+      if (ier .ne. CG_OK) call cg_error_exit_f 
+          
+    call cg_sol_info_f(index_mean,index_base,index_zone,index_flow,solnname,location,ier)
+      !print*, 'solnname = ', trim(solnname)
+      !if (trim(solnname) .ne. "Mean")  stop ' A solução nao se chama "Mean"... '
+        
+    call cg_gopath_f(index_mean, '/Base/'//trim(zonename)//'/Mean/', ier)
+      if (ier .ne. CG_OK) call cg_error_exit_f 
+
+  write(*,*) trim(zonename)
+  write(*,*) ijk_min(1:3)
+  write(*,*) ijk_max(1:3)
+
+  index_flow = 1
+  !call cg_sol_info_f(index_mean, index_base, index_zone, index_flow, solnname, location, ier)
+  !  if (ier .ne. CG_OK) call cg_error_print_f
+  !  if (trim(solnname) .ne. "Mean") stop ' A media nao se chama "Mean"... Tem alguma treta!!'
+
+  call cg_field_read_f(index_mean,index_base,index_zone,index_flow,trim(var_name),RealDouble,ijk_min(1:3),ijk_max(1:3),mean,ier)
+    if (ier .ne. CG_OK) call cg_error_exit_f
+
+  call cg_close_f(index_mean,ier)
+    if (ier .ne. CG_OK) call cg_error_exit_f
+
+  DEALLOCATE(isize)
+
+end subroutine read_mean_soln_3D_CGNS
 !------------------------------------------------------------------------------------
 
 

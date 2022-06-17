@@ -55,10 +55,11 @@ module mod_signal_process
   contains
 
     !~~~~~~~~~~~~~~~~~~~~~~~~~   
-    subroutine compute_bins(nmin,nmax,nsnap,flag)
+    subroutine compute_bins(nmin,skip,nmax,flag)
      
       implicit none
-      integer(kind=4), intent(in) :: nmin,nsnap
+      integer(kind=4), intent(in) :: nmin
+      integer(kind=4), intent(in) :: skip
       integer(kind=4), intent(in) :: nmax
       integer(kind=4) :: i, k1, k2 
       logical, intent(in) :: flag
